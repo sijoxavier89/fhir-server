@@ -40,11 +40,11 @@ namespace Microsoft.Health.Fhir.SqlServer.Features.Schema.Model
         internal readonly static UriSearchParamTable UriSearchParam = new UriSearchParamTable();
         internal readonly static AcquireExportJobsProcedure AcquireExportJobs = new AcquireExportJobsProcedure();
         internal readonly static AcquireReindexJobsProcedure AcquireReindexJobs = new AcquireReindexJobsProcedure();
+        internal readonly static CheckActiveReindexJobsProcedure CheckActiveReindexJobs = new CheckActiveReindexJobsProcedure();
         internal readonly static CreateExportJobProcedure CreateExportJob = new CreateExportJobProcedure();
         internal readonly static CreateReindexJobProcedure CreateReindexJob = new CreateReindexJobProcedure();
         internal readonly static GetExportJobByHashProcedure GetExportJobByHash = new GetExportJobByHashProcedure();
         internal readonly static GetExportJobByIdProcedure GetExportJobById = new GetExportJobByIdProcedure();
-        internal readonly static GetReindexJobByHashProcedure GetReindexJobByHash = new GetReindexJobByHashProcedure();
         internal readonly static GetReindexJobByIdProcedure GetReindexJobById = new GetReindexJobByIdProcedure();
         internal readonly static GetSearchParamStatusesProcedure GetSearchParamStatuses = new GetSearchParamStatusesProcedure();
         internal readonly static HardDeleteResourceProcedure HardDeleteResource = new HardDeleteResourceProcedure();
@@ -222,13 +222,11 @@ namespace Microsoft.Health.Fhir.SqlServer.Features.Schema.Model
             }
 
             internal readonly VarCharColumn Id = new VarCharColumn("Id", 64, "Latin1_General_100_CS_AS");
-            internal readonly VarCharColumn Hash = new VarCharColumn("Hash", 64, "Latin1_General_100_CS_AS");
             internal readonly VarCharColumn Status = new VarCharColumn("Status", 10);
             internal readonly NullableDateTime2Column HeartbeatDateTime = new NullableDateTime2Column("HeartbeatDateTime", 7);
             internal readonly VarCharColumn RawJobRecord = new VarCharColumn("RawJobRecord", -1);
             internal readonly TimestampColumn JobVersion = new TimestampColumn("JobVersion");
             internal readonly Index IXC_ReindexJob = new Index("IXC_ReindexJob");
-            internal readonly Index IX_ReindexJob_Hash_Status_HeartbeatDateTime = new Index("IX_ReindexJob_Hash_Status_HeartbeatDateTime");
         }
 
         internal class ResourceTable : Table
@@ -503,6 +501,19 @@ namespace Microsoft.Health.Fhir.SqlServer.Features.Schema.Model
             }
         }
 
+        internal class CheckActiveReindexJobsProcedure : StoredProcedure
+        {
+            internal CheckActiveReindexJobsProcedure(): base("dbo.CheckActiveReindexJobs")
+            {
+            }
+
+            public void PopulateCommand(SqlCommandWrapper command)
+            {
+                command.CommandType = global::System.Data.CommandType.StoredProcedure;
+                command.CommandText = "dbo.CheckActiveReindexJobs";
+            }
+        }
+
         internal class CreateExportJobProcedure : StoredProcedure
         {
             internal CreateExportJobProcedure(): base("dbo.CreateExportJob")
@@ -531,15 +542,13 @@ namespace Microsoft.Health.Fhir.SqlServer.Features.Schema.Model
             }
 
             private readonly ParameterDefinition<System.String> _id = new ParameterDefinition<System.String>("@id", global::System.Data.SqlDbType.VarChar, false, 64);
-            private readonly ParameterDefinition<System.String> _hash = new ParameterDefinition<System.String>("@hash", global::System.Data.SqlDbType.VarChar, false, 64);
             private readonly ParameterDefinition<System.String> _status = new ParameterDefinition<System.String>("@status", global::System.Data.SqlDbType.VarChar, false, 10);
             private readonly ParameterDefinition<System.String> _rawJobRecord = new ParameterDefinition<System.String>("@rawJobRecord", global::System.Data.SqlDbType.VarChar, false, -1);
-            public void PopulateCommand(SqlCommandWrapper command, System.String id, System.String hash, System.String status, System.String rawJobRecord)
+            public void PopulateCommand(SqlCommandWrapper command, System.String id, System.String status, System.String rawJobRecord)
             {
                 command.CommandType = global::System.Data.CommandType.StoredProcedure;
                 command.CommandText = "dbo.CreateReindexJob";
                 _id.AddParameter(command.Parameters, id);
-                _hash.AddParameter(command.Parameters, hash);
                 _status.AddParameter(command.Parameters, status);
                 _rawJobRecord.AddParameter(command.Parameters, rawJobRecord);
             }
@@ -572,21 +581,6 @@ namespace Microsoft.Health.Fhir.SqlServer.Features.Schema.Model
                 command.CommandType = global::System.Data.CommandType.StoredProcedure;
                 command.CommandText = "dbo.GetExportJobById";
                 _id.AddParameter(command.Parameters, id);
-            }
-        }
-
-        internal class GetReindexJobByHashProcedure : StoredProcedure
-        {
-            internal GetReindexJobByHashProcedure(): base("dbo.GetReindexJobByHash")
-            {
-            }
-
-            private readonly ParameterDefinition<System.String> _hash = new ParameterDefinition<System.String>("@hash", global::System.Data.SqlDbType.VarChar, false, 64);
-            public void PopulateCommand(SqlCommandWrapper command, System.String hash)
-            {
-                command.CommandType = global::System.Data.CommandType.StoredProcedure;
-                command.CommandText = "dbo.GetReindexJobByHash";
-                _hash.AddParameter(command.Parameters, hash);
             }
         }
 

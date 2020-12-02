@@ -18,7 +18,7 @@ using Xunit;
 namespace Microsoft.Health.Fhir.Shared.Tests.Integration.Features.Operations
 {
     [Collection(FhirOperationTestConstants.FhirOperationTests)]
-    [FhirStorageTestsFixtureArgumentSets(DataStore.CosmosDb)]
+    [FhirStorageTestsFixtureArgumentSets(DataStore.All)]
     public class FhirOperationDataStoreReindexTests : IClassFixture<FhirStorageTestsFixture>, IAsyncLifetime
     {
         private readonly IFhirOperationDataStore _operationDataStore;
@@ -180,8 +180,10 @@ namespace Microsoft.Health.Fhir.Shared.Tests.Integration.Features.Operations
 
         private async Task<ReindexJobRecord> InsertNewReindexJobRecordAsync(Action<ReindexJobRecord> jobRecordCustomizer = null)
         {
-            Dictionary<string, string> searchParamHashMap = new Dictionary<string, string>();
-            searchParamHashMap.Add("Patient", "searchParamHash");
+            var searchParamHashMap = new Dictionary<string, string>
+            {
+                { "Patient", "searchParamHash" },
+            };
             var jobRecord = new ReindexJobRecord(searchParamHashMap, maxiumumConcurrency: 1);
 
             jobRecordCustomizer?.Invoke(jobRecord);

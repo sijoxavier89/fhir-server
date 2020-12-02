@@ -1948,7 +1948,6 @@ GO
 CREATE TABLE dbo.ReindexJob
 (
     Id varchar(64) COLLATE Latin1_General_100_CS_AS NOT NULL,
-    Hash varchar(64) COLLATE Latin1_General_100_CS_AS NOT NULL,
     Status varchar(10) NOT NULL,
     HeartbeatDateTime datetime2(7) NULL,
     RawJobRecord varchar(max) NOT NULL,
@@ -1958,13 +1957,6 @@ CREATE TABLE dbo.ReindexJob
 CREATE UNIQUE CLUSTERED INDEX IXC_ReindexJob ON dbo.ReindexJob
 (
     Id
-)
-
-CREATE UNIQUE NONCLUSTERED INDEX IX_ReindexJob_Hash_Status_HeartbeatDateTime ON dbo.ReindexJob
-(
-    Hash,
-    Status,
-    HeartbeatDateTime
 )
 
 GO
@@ -1982,8 +1974,6 @@ GO
 -- PARAMETERS
 --     @id
 --         * The ID of the reindex job record
---     @hash
---         * The SHA256 hash of the reindex job record ID
 --     @status
 --         * The status of the reindex job
 --     @rawJobRecord
@@ -1994,7 +1984,6 @@ GO
 --
 CREATE PROCEDURE dbo.CreateReindexJob
     @id varchar(64),
-    @hash varchar(64),
     @status varchar(10),
     @rawJobRecord varchar(max)
 AS
@@ -2006,9 +1995,9 @@ AS
     DECLARE @heartbeatDateTime datetime2(7) = SYSUTCDATETIME()
 
     INSERT INTO dbo.ReindexJob
-        (Id, Hash, Status, HeartbeatDateTime, RawJobRecord)
+        (Id, Status, HeartbeatDateTime, RawJobRecord)
     VALUES
-        (@id, @hash, @status, @heartbeatDateTime, @rawJobRecord)
+        (@id, @status, @heartbeatDateTime, @rawJobRecord)
 
     SELECT CAST(MIN_ACTIVE_ROWVERSION() AS INT)
 
@@ -2037,31 +2026,6 @@ AS
     SELECT RawJobRecord, JobVersion
     FROM dbo.ReindexJob
     WHERE Id = @id
-GO
-
---
--- STORED PROCEDURE
---     Gets a reindex job given the hash of its ID.
---
--- DESCRIPTION
---     Retrieves the reindex job record from the ReindexJob table that has the matching hash.
---
--- PARAMETERS
---     @hash
---         * The SHA256 hash of the reindex job record ID
---
--- RETURN VALUE
---     The matching reindex job.
---
-CREATE PROCEDURE dbo.GetReindexJobByHash
-    @hash varchar(64)
-AS
-    SET NOCOUNT ON
-
-    SELECT TOP(1) RawJobRecord, JobVersion
-    FROM dbo.ReindexJob
-    WHERE Hash = @hash AND (Status = 'Queued' OR Status = 'Running')
-    ORDER BY HeartbeatDateTime ASC
 GO
 
 --
@@ -2182,3 +2146,24 @@ AS
     COMMIT TRANSACTION
 GO
 
+--
+-- STORED PROCEDURE
+--     Checks if there are any active reindex jobs.
+--
+-- DESCRIPTION
+--     Queries the datastore for any reindex job documents with a status of running, queued or paused.
+--
+-- RETURN VALUE
+--     True if one or more active reindex jobs exists, false otherwise.
+--
+CREATE PROCEDURE dbo.CheckActiveReindexJobs
+AS
+    SET NOCOUNT ON
+
+    SELECT CASE WHEN EXISTS (SELECT * FROM dbo.ReindexJob WHERE Status = 'Running' OR Status = 'Queued' OR Status = 'Paused')
+        THEN
+            CAST(1 AS BIT)
+        ELSE
+            CAST(0 AS BIT)
+    END
+GO
