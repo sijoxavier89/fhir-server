@@ -181,23 +181,27 @@ AS
     -- Determine how many available jobs we can pick up.
     DECLARE @limit int = @maximumNumberOfConcurrentJobsAllowed - @numberOfRunningJobs;
 
-    DECLARE @availableJobs TABLE (Id varchar(64) COLLATE Latin1_General_100_CS_AS NOT NULL, JobVersion binary(8) NOT NULL)
+    IF (@limit > 0) BEGIN
 
-    -- Get the available jobs, which are reindex jobs that are queued or stale.
-    -- Older jobs will be prioritized over newer ones.
-    INSERT INTO @availableJobs
-    SELECT TOP(@limit) Id, JobVersion
-    FROM dbo.ReindexJob
-    WHERE (Status = 'Queued' OR (Status = 'Running' AND HeartbeatDateTime <= @expirationDateTime))
-    ORDER BY HeartbeatDateTime
+        DECLARE @availableJobs TABLE (Id varchar(64) COLLATE Latin1_General_100_CS_AS NOT NULL, JobVersion binary(8) NOT NULL)
 
-    DECLARE @heartbeatDateTime datetime2(7) = SYSUTCDATETIME()
+        -- Get the available jobs, which are reindex jobs that are queued or stale.
+        -- Older jobs will be prioritized over newer ones.
+        INSERT INTO @availableJobs
+        SELECT TOP(@limit) Id, JobVersion
+        FROM dbo.ReindexJob
+        WHERE (Status = 'Queued' OR (Status = 'Running' AND HeartbeatDateTime <= @expirationDateTime))
+        ORDER BY HeartbeatDateTime
 
-    -- Update each available job's status to running both in the reindex table's status column and in the raw reindex job record JSON.
-    UPDATE dbo.ReindexJob
-    SET Status = 'Running', HeartbeatDateTime = @heartbeatDateTime, RawJobRecord = JSON_MODIFY(RawJobRecord,'$.status', 'Running')
-    OUTPUT inserted.RawJobRecord, inserted.JobVersion
-    FROM dbo.ReindexJob job INNER JOIN @availableJobs availableJob ON job.Id = availableJob.Id AND job.JobVersion = availableJob.JobVersion
+        DECLARE @heartbeatDateTime datetime2(7) = SYSUTCDATETIME()
+
+        -- Update each available job's status to running both in the reindex table's status column and in the raw reindex job record JSON.
+        UPDATE dbo.ReindexJob
+        SET Status = 'Running', HeartbeatDateTime = @heartbeatDateTime, RawJobRecord = JSON_MODIFY(RawJobRecord,'$.status', 'Running')
+        OUTPUT inserted.RawJobRecord, inserted.JobVersion
+        FROM dbo.ReindexJob job INNER JOIN @availableJobs availableJob ON job.Id = availableJob.Id AND job.JobVersion = availableJob.JobVersion
+
+    END
 
     COMMIT TRANSACTION
 GO
