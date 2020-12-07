@@ -18,10 +18,15 @@ using Microsoft.Health.Fhir.Core.Features.Context;
 using Microsoft.Health.Fhir.Core.Features.Definition;
 using Microsoft.Health.Fhir.Core.Features.Operations;
 using Microsoft.Health.Fhir.Core.Features.Persistence;
+using Microsoft.Health.Fhir.Core.Features.Search;
+using Microsoft.Health.Fhir.Core.Features.Search.Expressions.Parsers;
 using Microsoft.Health.Fhir.Core.Features.Search.Registry;
+using Microsoft.Health.Fhir.Core.Features.Search.SearchValues;
 using Microsoft.Health.Fhir.Core.Models;
 using Microsoft.Health.Fhir.CosmosDb.Configs;
 using Microsoft.Health.Fhir.CosmosDb.Features.Queries;
+using Microsoft.Health.Fhir.CosmosDb.Features.Search;
+using Microsoft.Health.Fhir.CosmosDb.Features.Search.Queries;
 using Microsoft.Health.Fhir.CosmosDb.Features.Storage;
 using Microsoft.Health.Fhir.CosmosDb.Features.Storage.Operations;
 using Microsoft.Health.Fhir.CosmosDb.Features.Storage.Registry;
@@ -40,11 +45,12 @@ namespace Microsoft.Health.Fhir.Tests.Integration.Persistence
         private readonly CosmosCollectionConfiguration _cosmosCollectionConfiguration;
 
         private Container _container;
-        private IFhirDataStore _fhirDataStore;
+        private CosmosFhirDataStore _fhirDataStore;
         private IFhirOperationDataStore _fhirOperationDataStore;
         private IFhirStorageTestHelper _fhirStorageTestHelper;
         private FilebasedSearchParameterStatusDataStore _filebasedSearchParameterStatusDataStore;
         private ISearchParameterStatusDataStore _searchParameterStatusDataStore;
+        private ISearchService _searchService;
         private CosmosClient _cosmosClient;
 
         public CosmosDbFhirStorageTestsFixture()
@@ -129,6 +135,8 @@ namespace Microsoft.Health.Fhir.Tests.Integration.Persistence
                 _cosmosDataStoreConfiguration,
                 cosmosDocumentQueryFactory);
 
+            var options = Options.Create(new CoreFeatureConfiguration());
+
             _fhirDataStore = new CosmosFhirDataStore(
                 documentClient,
                 _cosmosDataStoreConfiguration,
@@ -136,7 +144,7 @@ namespace Microsoft.Health.Fhir.Tests.Integration.Persistence
                 cosmosDocumentQueryFactory,
                 new RetryExceptionPolicyFactory(_cosmosDataStoreConfiguration),
                 NullLogger<CosmosFhirDataStore>.Instance,
-                Options.Create(new CoreFeatureConfiguration()));
+                options);
 
             _fhirOperationDataStore = new CosmosFhirOperationDataStore(
                 documentClient,
@@ -145,6 +153,18 @@ namespace Microsoft.Health.Fhir.Tests.Integration.Persistence
                 new RetryExceptionPolicyFactory(_cosmosDataStoreConfiguration),
                 new CosmosQueryFactory(responseProcessor, new NullFhirCosmosQueryLogger()),
                 NullLogger<CosmosFhirOperationDataStore>.Instance);
+
+            var searchableSearchParameterDefinitionManager = new SearchableSearchParameterDefinitionManager(searchParameterDefinitionManager, fhirRequestContextAccessor);
+            var searchParameterExpressionParser = new SearchParameterExpressionParser(() => searchParameterDefinitionManager, new ReferenceSearchValueParser(fhirRequestContextAccessor));
+            var expressionParser = new ExpressionParser(() => searchableSearchParameterDefinitionManager, searchParameterExpressionParser);
+            var searchOptionsFactory = new SearchOptionsFactory(expressionParser, () => searchableSearchParameterDefinitionManager, options, fhirRequestContextAccessor, Substitute.For<ISortingValidator>(), NullLogger<SearchOptionsFactory>.Instance);
+
+            _searchService = new FhirCosmosSearchService(
+                searchOptionsFactory,
+                _fhirDataStore,
+                new QueryBuilder(),
+                Substitute.For<ISearchParameterDefinitionManager>(),
+                fhirRequestContextAccessor);
 
             _fhirStorageTestHelper = new CosmosDbFhirStorageTestHelper(_container);
         }
@@ -189,6 +209,11 @@ namespace Microsoft.Health.Fhir.Tests.Integration.Persistence
             if (serviceType == typeof(FilebasedSearchParameterStatusDataStore))
             {
                 return _filebasedSearchParameterStatusDataStore;
+            }
+
+            if (serviceType == typeof(ISearchService))
+            {
+                return _searchService;
             }
 
             return null;

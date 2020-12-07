@@ -22,7 +22,6 @@ using Microsoft.Health.SqlServer;
 using Microsoft.Health.SqlServer.Features.Client;
 using Microsoft.Health.SqlServer.Features.Storage;
 using Newtonsoft.Json;
-using Newtonsoft.Json.Serialization;
 
 namespace Microsoft.Health.Fhir.SqlServer.Features.Storage
 {
@@ -199,13 +198,11 @@ namespace Microsoft.Health.Fhir.SqlServer.Features.Storage
             using (SqlConnectionWrapper sqlConnectionWrapper = await _sqlConnectionWrapperFactory.ObtainSqlConnectionWrapperAsync(cancellationToken, true))
             using (SqlCommandWrapper sqlCommandWrapper = sqlConnectionWrapper.CreateSqlCommand())
             {
-                var rawJobRecord = JsonConvert.SerializeObject(jobRecord, _jsonSerializerSettings);
-
                 VLatest.CreateReindexJob.PopulateCommand(
                     sqlCommandWrapper,
                     jobRecord.Id,
                     jobRecord.Status.ToString(),
-                    rawJobRecord);
+                    JsonConvert.SerializeObject(jobRecord, _jsonSerializerSettings));
 
                 var rowVersion = (int?)await sqlCommandWrapper.ExecuteScalarAsync(cancellationToken);
 

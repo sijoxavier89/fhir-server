@@ -11,22 +11,17 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Microsoft.Health.Extensions.DependencyInjection;
 using Microsoft.Health.Fhir.Core.Configs;
-using Microsoft.Health.Fhir.Core.Features.Context;
 using Microsoft.Health.Fhir.Core.Features.Definition;
 using Microsoft.Health.Fhir.Core.Features.Operations;
 using Microsoft.Health.Fhir.Core.Features.Operations.Reindex;
 using Microsoft.Health.Fhir.Core.Features.Persistence;
 using Microsoft.Health.Fhir.Core.Features.Search;
-using Microsoft.Health.Fhir.Core.Features.Search.Expressions.Parsers;
 using Microsoft.Health.Fhir.Core.Features.Search.Registry;
 using Microsoft.Health.Fhir.Core.Features.Search.SearchValues;
 using Microsoft.Health.Fhir.Core.Features.Security.Authorization;
 using Microsoft.Health.Fhir.Core.Messages.Reindex;
 using Microsoft.Health.Fhir.Core.Models;
 using Microsoft.Health.Fhir.Core.UnitTests.Extensions;
-using Microsoft.Health.Fhir.CosmosDb.Features.Search;
-using Microsoft.Health.Fhir.CosmosDb.Features.Search.Queries;
-using Microsoft.Health.Fhir.CosmosDb.Features.Storage;
 using Microsoft.Health.Fhir.Tests.Common;
 using Microsoft.Health.Fhir.Tests.Common.FixtureParameters;
 using Microsoft.Health.Fhir.Tests.Integration.Persistence;
@@ -36,7 +31,7 @@ using Task = System.Threading.Tasks.Task;
 
 namespace Microsoft.Health.Fhir.Tests.Integration.Features.Operations.Reindex
 {
-    [FhirStorageTestsFixtureArgumentSets(DataStore.CosmosDb)]
+    [FhirStorageTestsFixtureArgumentSets(DataStore.All)]
     public class ReindexJobTests : IClassFixture<FhirStorageTestsFixture>, IAsyncLifetime
     {
         private readonly FhirStorageTestsFixture _fixture;
@@ -51,9 +46,7 @@ namespace Microsoft.Health.Fhir.Tests.Integration.Features.Operations.Reindex
         private ReindexUtilities _reindexUtilities;
         private readonly ISearchIndexer _searchIndexer = Substitute.For<ISearchIndexer>();
         private ISupportedSearchParameterDefinitionManager _supportedSearchParameterDefinitionManager;
-        private SearchableSearchParameterDefinitionManager _searchableSearchParameterDefinitionManager;
         private readonly ISearchParameterStatusDataStore _searchParameterStatusDataStore = Substitute.For<ISearchParameterStatusDataStore>();
-        private readonly IOptions<CoreFeatureConfiguration> coreOptions = Substitute.For<IOptions<CoreFeatureConfiguration>>();
 
         private ReindexJobWorker _reindexJobWorker;
         private IScoped<ISearchService> _searchService;
@@ -76,16 +69,15 @@ namespace Microsoft.Health.Fhir.Tests.Integration.Features.Operations.Reindex
 
             _searchParameterDefinitionManager = new SearchParameterDefinitionManager(ModelInfoProvider.Instance);
             await _searchParameterDefinitionManager.StartAsync(CancellationToken.None);
-            _searchParameterDefinitionManager.UpdateSearchParameterHashMap(new Dictionary<string, string>() { { "Patient", "newHash" } });
+            _searchParameterDefinitionManager.UpdateSearchParameterHashMap(new Dictionary<string, string>() { { "Patient", "newHash" } }); // TODO: check if this gets populated already
             _supportedSearchParameterDefinitionManager = new SupportedSearchParameterDefinitionManager(_searchParameterDefinitionManager);
-            var fhirRequestContextAccessor = Substitute.For<IFhirRequestContextAccessor>();
-            _searchableSearchParameterDefinitionManager = new SearchableSearchParameterDefinitionManager(_searchParameterDefinitionManager, fhirRequestContextAccessor);
 
             _createReindexRequestHandler = new CreateReindexRequestHandler(
                                                 _fhirOperationDataStore,
                                                 DisabledFhirAuthorizationService.Instance,
                                                 optionsReindexConfig,
                                                 _searchParameterDefinitionManager);
+
             _reindexUtilities = new ReindexUtilities(
                 () => _scopedDataStore,
                 _searchIndexer,
@@ -93,14 +85,7 @@ namespace Microsoft.Health.Fhir.Tests.Integration.Features.Operations.Reindex
                 _supportedSearchParameterDefinitionManager,
                 _searchParameterStatusDataStore);
 
-            coreOptions.Value.Returns(new CoreFeatureConfiguration());
-
-            var searchParameterExpressionParser = new SearchParameterExpressionParser(() => _searchParameterDefinitionManager, new ReferenceSearchValueParser(fhirRequestContextAccessor));
-            var expressionParser = new ExpressionParser(() => _searchableSearchParameterDefinitionManager, searchParameterExpressionParser);
-            var searchOptionsFactory = new SearchOptionsFactory(expressionParser, () => _searchableSearchParameterDefinitionManager, coreOptions, fhirRequestContextAccessor, Substitute.For<ISortingValidator>(), NullLogger<SearchOptionsFactory>.Instance);
-            var cosmosSearchService = new FhirCosmosSearchService(searchOptionsFactory, _fixture.DataStore as CosmosFhirDataStore, new QueryBuilder(), Substitute.For<ISearchParameterDefinitionManager>(), fhirRequestContextAccessor) as ISearchService;
-
-            _searchService = cosmosSearchService.CreateMockScope();
+            _searchService = _fixture.SearchService.CreateMockScope();
 
             await _fhirStorageTestHelper.DeleteAllReindexJobRecordsAsync(CancellationToken.None);
         }
