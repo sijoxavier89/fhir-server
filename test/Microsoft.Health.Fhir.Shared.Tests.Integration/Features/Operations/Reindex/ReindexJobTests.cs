@@ -193,7 +193,7 @@ namespace Microsoft.Health.Fhir.Tests.Integration.Features.Operations.Reindex
                     reindexJobWrapper = await _fhirOperationDataStore.GetReindexJobByIdAsync(response.Job.JobRecord.Id, cancellationTokenSource.Token);
                 }
 
-                Assert.True(delayCount <= 9);
+                Assert.InRange(delayCount, 0, 10);
             }
             finally
             {
