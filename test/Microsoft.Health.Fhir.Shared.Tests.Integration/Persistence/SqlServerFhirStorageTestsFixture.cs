@@ -53,6 +53,8 @@ namespace Microsoft.Health.Fhir.Tests.Integration.Persistence
         private readonly SchemaInitializer _schemaInitializer;
         private readonly FilebasedSearchParameterStatusDataStore _filebasedSearchParameterStatusDataStore;
         private readonly ISearchService _searchService;
+        private readonly SearchParameterDefinitionManager _searchParameterDefinitionManager;
+        private readonly SupportedSearchParameterDefinitionManager _supportedSearchParameterDefinitionManager;
 
         public SqlServerFhirStorageTestsFixture()
         {
@@ -73,16 +75,16 @@ namespace Microsoft.Health.Fhir.Tests.Integration.Persistence
             var schemaUpgradeRunner = new SchemaUpgradeRunner(scriptProvider, baseScriptProvider, mediator, NullLogger<SchemaUpgradeRunner>.Instance, sqlConnectionFactory);
             _schemaInitializer = new SchemaInitializer(config, schemaUpgradeRunner, schemaInformation, sqlConnectionFactory, NullLogger<SchemaInitializer>.Instance);
 
-            var searchParameterDefinitionManager = new SearchParameterDefinitionManager(ModelInfoProvider.Instance);
+            _searchParameterDefinitionManager = new SearchParameterDefinitionManager(ModelInfoProvider.Instance);
 
-            _filebasedSearchParameterStatusDataStore = new FilebasedSearchParameterStatusDataStore(searchParameterDefinitionManager, ModelInfoProvider.Instance);
+            _filebasedSearchParameterStatusDataStore = new FilebasedSearchParameterStatusDataStore(_searchParameterDefinitionManager, ModelInfoProvider.Instance);
 
             var securityConfiguration = new SecurityConfiguration { PrincipalClaims = { "oid" } };
 
             var sqlServerFhirModel = new SqlServerFhirModel(
                 config,
                 schemaInformation,
-                searchParameterDefinitionManager,
+                _searchParameterDefinitionManager,
                 () => _filebasedSearchParameterStatusDataStore,
                 Options.Create(securityConfiguration),
                 NullLogger<SqlServerFhirModel>.Instance);
@@ -96,7 +98,8 @@ namespace Microsoft.Health.Fhir.Tests.Integration.Persistence
             var upsertResourceTvpGenerator = serviceProvider.GetRequiredService<VLatest.UpsertResourceTvpGenerator<ResourceMetadata>>();
             var upsertSearchParamsTvpGenerator = serviceProvider.GetRequiredService<VLatest.UpsertSearchParamsTvpGenerator<List<ResourceSearchParameterStatus>>>();
 
-            var searchParameterToSearchValueTypeMap = new SearchParameterToSearchValueTypeMap(new SupportedSearchParameterDefinitionManager(searchParameterDefinitionManager));
+            _supportedSearchParameterDefinitionManager = new SupportedSearchParameterDefinitionManager(_searchParameterDefinitionManager);
+            var searchParameterToSearchValueTypeMap = new SearchParameterToSearchValueTypeMap(_supportedSearchParameterDefinitionManager);
 
             SqlTransactionHandler = new SqlTransactionHandler();
             SqlConnectionWrapperFactory = new SqlConnectionWrapperFactory(SqlTransactionHandler, new SqlCommandWrapperFactory(), sqlConnectionFactory);
@@ -114,12 +117,11 @@ namespace Microsoft.Health.Fhir.Tests.Integration.Persistence
             _fhirOperationDataStore = new SqlServerFhirOperationDataStore(SqlConnectionWrapperFactory, NullLogger<SqlServerFhirOperationDataStore>.Instance);
 
             var fhirRequestContextAccessor = new FhirRequestContextAccessor();
-            var searchableSearchParameterDefinitionManager = new SearchableSearchParameterDefinitionManager(searchParameterDefinitionManager, fhirRequestContextAccessor);
-            var supportedSearchParameterDefinitionManager = new SupportedSearchParameterDefinitionManager(searchParameterDefinitionManager);
-            var searchParameterExpressionParser = new SearchParameterExpressionParser(() => searchParameterDefinitionManager, new ReferenceSearchValueParser(fhirRequestContextAccessor));
+            var searchableSearchParameterDefinitionManager = new SearchableSearchParameterDefinitionManager(_searchParameterDefinitionManager, fhirRequestContextAccessor);
+            var searchParameterExpressionParser = new SearchParameterExpressionParser(() => _searchParameterDefinitionManager, new ReferenceSearchValueParser(fhirRequestContextAccessor));
             var expressionParser = new ExpressionParser(() => searchableSearchParameterDefinitionManager, searchParameterExpressionParser);
 
-            searchParameterDefinitionManager.StartAsync(CancellationToken.None);
+            _searchParameterDefinitionManager.StartAsync(CancellationToken.None);
 
             var searchOptionsFactory = new SearchOptionsFactory(
                 expressionParser,
@@ -132,7 +134,7 @@ namespace Microsoft.Health.Fhir.Tests.Integration.Persistence
             var normalizedSearchParameterQueryGeneratorFactory = new NormalizedSearchParameterQueryGeneratorFactory(searchParameterToSearchValueTypeMap);
             var sqlRootExpressionRewriter = new SqlRootExpressionRewriter(normalizedSearchParameterQueryGeneratorFactory);
             var chainFlatteningRewriter = new ChainFlatteningRewriter(normalizedSearchParameterQueryGeneratorFactory);
-            var stringOverflowRewriter = new StringOverflowRewriter(supportedSearchParameterDefinitionManager);
+            var stringOverflowRewriter = new StringOverflowRewriter(_supportedSearchParameterDefinitionManager);
             var sortRewriter = new SortRewriter(normalizedSearchParameterQueryGeneratorFactory);
 
             _searchService = new SqlServerSearchService(
@@ -210,6 +212,16 @@ namespace Microsoft.Health.Fhir.Tests.Integration.Persistence
             if (serviceType == typeof(ISearchService))
             {
                 return _searchService;
+            }
+
+            if (serviceType == typeof(SearchParameterDefinitionManager))
+            {
+                return _searchParameterDefinitionManager;
+            }
+
+            if (serviceType == typeof(SupportedSearchParameterDefinitionManager))
+            {
+                return _supportedSearchParameterDefinitionManager;
             }
 
             return null;

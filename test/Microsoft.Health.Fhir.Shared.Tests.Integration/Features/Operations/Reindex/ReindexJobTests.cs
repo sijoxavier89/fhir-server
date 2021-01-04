@@ -67,10 +67,9 @@ namespace Microsoft.Health.Fhir.Tests.Integration.Features.Operations.Reindex
             IOptions<ReindexJobConfiguration> optionsReindexConfig = Substitute.For<IOptions<ReindexJobConfiguration>>();
             optionsReindexConfig.Value.Returns(_jobConfiguration);
 
-            _searchParameterDefinitionManager = new SearchParameterDefinitionManager(ModelInfoProvider.Instance);
-            await _searchParameterDefinitionManager.StartAsync(CancellationToken.None);
+            _searchParameterDefinitionManager = _fixture.SearchParameterDefinitionManager;
             _searchParameterDefinitionManager.UpdateSearchParameterHashMap(new Dictionary<string, string>() { { "Patient", "newHash" } }); // TODO: check if this gets populated already
-            _supportedSearchParameterDefinitionManager = new SupportedSearchParameterDefinitionManager(_searchParameterDefinitionManager);
+            _supportedSearchParameterDefinitionManager = _fixture.SupportedSearchParameterDefinitionManager;
 
             _createReindexRequestHandler = new CreateReindexRequestHandler(
                                                 _fhirOperationDataStore,
