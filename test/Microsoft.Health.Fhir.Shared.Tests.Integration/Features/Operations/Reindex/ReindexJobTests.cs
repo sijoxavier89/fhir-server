@@ -6,6 +6,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net;
 using System.Threading;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -299,7 +300,7 @@ namespace Microsoft.Health.Fhir.Tests.Integration.Features.Operations.Reindex
             json = json.Replace("Chalmers", patientName);
             json = json.Replace("\"id\": \"example\"", "\"id\": \"" + patientName + "\"");
             var rawResource = new RawResource(json, FhirResourceFormat.Json, isMetaSet: false);
-            var resourceRequest = Substitute.For<ResourceRequest>();
+            var resourceRequest = new ResourceRequest(WebRequestMethods.Http.Put);
             var compartmentIndices = Substitute.For<CompartmentIndices>();
             var resourceElement = Deserializers.ResourceDeserializer.DeserializeRaw(rawResource, "v1", DateTimeOffset.UtcNow);
             var searchIndices = _searchIndexer.Extract(resourceElement);
