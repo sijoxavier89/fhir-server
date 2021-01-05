@@ -116,7 +116,9 @@ namespace Microsoft.Health.Fhir.Tests.Integration.Persistence
 
             _fhirOperationDataStore = new SqlServerFhirOperationDataStore(SqlConnectionWrapperFactory, NullLogger<SqlServerFhirOperationDataStore>.Instance);
 
-            var fhirRequestContextAccessor = new FhirRequestContextAccessor();
+            var fhirRequestContextAccessor = Substitute.For<IFhirRequestContextAccessor>();
+            fhirRequestContextAccessor.FhirRequestContext.CorrelationId.Returns(Guid.NewGuid().ToString());
+
             var searchableSearchParameterDefinitionManager = new SearchableSearchParameterDefinitionManager(_searchParameterDefinitionManager, fhirRequestContextAccessor);
             var searchParameterExpressionParser = new SearchParameterExpressionParser(() => _searchParameterDefinitionManager, new ReferenceSearchValueParser(fhirRequestContextAccessor));
             var expressionParser = new ExpressionParser(() => searchableSearchParameterDefinitionManager, searchParameterExpressionParser);
