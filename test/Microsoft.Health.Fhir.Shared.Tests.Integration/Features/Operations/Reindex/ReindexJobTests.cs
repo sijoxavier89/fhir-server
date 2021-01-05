@@ -151,7 +151,7 @@ namespace Microsoft.Health.Fhir.Tests.Integration.Features.Operations.Reindex
                     reindexJobWrapper = await _fhirOperationDataStore.GetReindexJobByIdAsync(response.Job.JobRecord.Id, cancellationTokenSource.Token);
                 }
 
-                Assert.True(delayCount <= 9);
+                Assert.InRange(delayCount, 0, 20);
             }
             finally
             {
@@ -193,7 +193,7 @@ namespace Microsoft.Health.Fhir.Tests.Integration.Features.Operations.Reindex
                     reindexJobWrapper = await _fhirOperationDataStore.GetReindexJobByIdAsync(response.Job.JobRecord.Id, cancellationTokenSource.Token);
                 }
 
-                Assert.InRange(delayCount, 0, 10);
+                Assert.InRange(delayCount, 0, 20);
             }
             finally
             {
@@ -268,7 +268,7 @@ namespace Microsoft.Health.Fhir.Tests.Integration.Features.Operations.Reindex
                     reindexJobWrapper = await _fhirOperationDataStore.GetReindexJobByIdAsync(response.Job.JobRecord.Id, cancellationTokenSource.Token);
                 }
 
-                Assert.True(delayCount <= 9);
+                Assert.InRange(delayCount, 0, 20);
 
                 searchResults = await _searchService.Value.SearchAsync("Patient", queryParams, CancellationToken.None);
 
