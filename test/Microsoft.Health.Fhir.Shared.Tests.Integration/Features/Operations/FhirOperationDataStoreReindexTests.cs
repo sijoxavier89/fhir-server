@@ -18,7 +18,7 @@ using Xunit;
 namespace Microsoft.Health.Fhir.Shared.Tests.Integration.Features.Operations
 {
     [Collection(FhirOperationTestConstants.FhirOperationTests)]
-    [FhirStorageTestsFixtureArgumentSets(DataStore.CosmosDb)]
+    [FhirStorageTestsFixtureArgumentSets(DataStore.All)]
     public class FhirOperationDataStoreReindexTests : IClassFixture<FhirStorageTestsFixture>, IAsyncLifetime
     {
         private readonly IFhirOperationDataStore _operationDataStore;

@@ -12,7 +12,6 @@ using EnsureThat;
 using MediatR;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Logging.Abstractions;
-using Microsoft.Health.Fhir.Core.Features.Definition;
 using Microsoft.Health.Fhir.SqlServer.Features.Schema;
 using Microsoft.Health.Fhir.SqlServer.Features.Storage;
 using Microsoft.Health.SqlServer;
@@ -30,27 +29,22 @@ namespace Microsoft.Health.Fhir.Tests.Integration.Persistence
     {
         private readonly string _masterDatabaseName;
         private readonly string _initialConnectionString;
-        private readonly SearchParameterDefinitionManager _searchParameterDefinitionManager;
         private readonly SqlServerFhirModel _sqlServerFhirModel;
         private readonly ISqlConnectionFactory _sqlConnectionFactory;
 
         public SqlServerFhirStorageTestHelper(
             string initialConnectionString,
             string masterDatabaseName,
-            SearchParameterDefinitionManager searchParameterDefinitionManager,
             SqlServerFhirModel sqlServerFhirModel,
             ISqlConnectionFactory sqlConnectionFactory)
         {
-            EnsureArg.IsNotNull(searchParameterDefinitionManager, nameof(searchParameterDefinitionManager));
             EnsureArg.IsNotNull(sqlServerFhirModel, nameof(sqlServerFhirModel));
             EnsureArg.IsNotNull(sqlConnectionFactory, nameof(sqlConnectionFactory));
 
             _masterDatabaseName = masterDatabaseName;
             _initialConnectionString = initialConnectionString;
-            _searchParameterDefinitionManager = searchParameterDefinitionManager;
             _sqlServerFhirModel = sqlServerFhirModel;
             _sqlConnectionFactory = sqlConnectionFactory;
-            _searchParameterDefinitionManager.StartAsync(CancellationToken.None).Wait();
         }
 
         public async Task CreateAndInitializeDatabase(string databaseName, bool forceIncrementalSchemaUpgrade, SchemaInitializer schemaInitializer = null, CancellationToken cancellationToken = default)
@@ -178,9 +172,15 @@ namespace Microsoft.Health.Fhir.Tests.Integration.Persistence
             }
         }
 
-        public Task DeleteAllReindexJobRecordsAsync(CancellationToken cancellationToken = default)
+        public async Task DeleteAllReindexJobRecordsAsync(CancellationToken cancellationToken = default)
         {
-            throw new NotImplementedException();
+            using (var connection = await _sqlConnectionFactory.GetSqlConnectionAsync())
+            {
+                var command = new SqlCommand("DELETE FROM dbo.ReindexJob", connection);
+
+                await command.Connection.OpenAsync(cancellationToken);
+                await command.ExecuteNonQueryAsync(cancellationToken);
+            }
         }
 
         async Task<object> IFhirStorageTestHelper.GetSnapshotToken()
